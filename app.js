@@ -155,8 +155,8 @@ const MAX_DPR = 2;
 /* Quanto dipingere oltre i bordi dello schermo, così scorrendo si trova la
  * pagina già pronta. In pixel calcolati sulla finestra: le percentuali nel
  * rootMargin si comportano diversamente tra i browser. */
-function preloadMargin() {
-  return `${Math.round((window.innerHeight || 800) * 1.5)}px 0px`;
+function preloadPx() {
+  return Math.round((window.innerHeight || 800) * 1.5);
 }
 
 let pageObserver = null;
@@ -204,9 +204,24 @@ function render() {
       if (e.isIntersecting) paintPage(e.target);
       else releasePage(e.target);
     }
-  }, { rootMargin: preloadMargin() });
+  }, { rootMargin: `${preloadPx()}px 0px` });
 
   viewer.querySelectorAll('.page').forEach((p) => pageObserver.observe(p));
+
+  // Il primo disegno non passa dall'osservatore: finché la finestra non è
+  // visibile il motore non ricalcola le intersezioni, e la pagina resterebbe
+  // bianca fino al primo scorrimento.
+  paintNearby();
+}
+
+/** Dipinge subito le pagine che si trovano a ridosso dello schermo. */
+function paintNearby() {
+  const margin = preloadPx();
+  const h = window.innerHeight || 800;
+  for (const wrap of viewer.querySelectorAll('.page')) {
+    const r = wrap.getBoundingClientRect();
+    if (r.top < h + margin && r.bottom > -margin) paintPage(wrap);
+  }
 }
 
 async function paintPage(wrap) {
@@ -265,7 +280,13 @@ function drawAnno(a) {
     el.style.fontSize = `${a.size * s}px`;
     el.style.color = a.color;
     el.style.lineHeight = LINE_HEIGHT;
-    el.textContent = a.text;
+    // Il testo sta in un elemento suo: il pulsante Elimina è un figlio del
+    // contenitore, e se si scrivesse direttamente qui il cursore finirebbe
+    // dentro quel pulsante.
+    const body = document.createElement('span');
+    body.className = 'anno-text-body';
+    body.textContent = a.text;
+    el.append(body);
   } else {
     el.style.width = `${a.w * s}px`;
     el.style.height = `${a.h * s}px`;
@@ -301,6 +322,7 @@ function drawAnno(a) {
 
   el.addEventListener('pointerdown', (ev) => {
     if (state.tool !== 'select' && state.tool !== 'text') return;
+    if (el.classList.contains('editing')) return;   // clic per spostare il cursore
     ev.stopPropagation();
     select(a.id);
     startDrag(ev, a, el);
@@ -395,33 +417,38 @@ function createText(pageIndex, pt) {
 }
 
 function editText(a, el) {
-  el.setAttribute('contenteditable', 'plaintext-only');
-  if (el.contentEditable !== 'plaintext-only') el.setAttribute('contenteditable', 'true');
-  el.focus();
+  const body = el.querySelector('.anno-text-body');
+  if (!body) return;
+
+  body.setAttribute('contenteditable', 'plaintext-only');
+  if (body.contentEditable !== 'plaintext-only') body.setAttribute('contenteditable', 'true');
+  el.classList.add('editing');
+  body.focus();
 
   const range = document.createRange();
-  range.selectNodeContents(el);
+  range.selectNodeContents(body);
   range.collapse(false);
   const sel = window.getSelection();
   sel.removeAllRanges();
   sel.addRange(range);
 
   const finish = () => {
-    el.removeAttribute('contenteditable');
-    el.removeEventListener('blur', finish);
-    el.removeEventListener('keydown', onKey);
-    a.text = el.innerText.replace(/\n$/, '');
+    body.removeAttribute('contenteditable');
+    el.classList.remove('editing');
+    body.removeEventListener('blur', finish);
+    body.removeEventListener('keydown', onKey);
+    a.text = body.innerText.replace(/\n$/, '');
     if (!a.text.trim()) removeAnno(a.id);
-    else el.textContent = a.text;
+    else body.textContent = a.text;
   };
 
   const onKey = (ev) => {
-    if (ev.key === 'Escape') { ev.preventDefault(); el.blur(); }
+    if (ev.key === 'Escape') { ev.preventDefault(); body.blur(); }
     ev.stopPropagation();
   };
 
-  el.addEventListener('blur', finish);
-  el.addEventListener('keydown', onKey);
+  body.addEventListener('blur', finish);
+  body.addEventListener('keydown', onKey);
 }
 
 /* --------------------------------------------------------- evidenziatore */

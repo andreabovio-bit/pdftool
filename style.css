@@ -155,11 +155,16 @@ body[data-tool="image"] .page-layer { cursor: copy; }
   font-family: Helvetica, Arial, sans-serif;
   line-height: 1.18;
   padding: 0;
-  outline: none;
-  min-width: 8px;
 }
 
-.anno-text[contenteditable="true"] {
+.anno-text-body {
+  display: inline-block;
+  min-width: 8px;
+  outline: none;
+  white-space: pre;
+}
+
+.anno-text-body[contenteditable] {
   cursor: text;
   background: rgba(37,99,235,.07);
   outline: 1.5px solid var(--accent);
