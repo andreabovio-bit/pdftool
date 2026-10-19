@@ -125,7 +125,6 @@ body {
 .page-layer {
   position: absolute;
   inset: 0;
-  overflow: hidden;
 }
 
 .page-badge {
@@ -175,8 +174,8 @@ body[data-tool="image"] .page-layer { cursor: copy; }
 
 .anno-del {
   position: absolute;
-  top: -11px;
-  right: -11px;
+  bottom: calc(100% + 3px);      /* del tutto fuori dal riquadro, non sopra il testo */
+  left: calc(100% + 3px);
   width: 20px;
   height: 20px;
   border: none;
@@ -206,6 +205,9 @@ body[data-tool="image"] .page-layer { cursor: copy; }
 
 .anno.selected .anno-del,
 .anno.selected .anno-grip { display: block; }
+
+.anno.editing .anno-del,
+.anno.editing .anno-grip { display: none; }
 .anno-text .anno-grip { display: none !important; }
 
 /* ---------- dialog firma ---------- */
@@ -277,7 +279,7 @@ body[data-tool="highlight"] .page-layer { touch-action: none; }
   .prop input[type="color"] { width: 44px; height: 40px; }
 
   /* bersagli più generosi per il dito */
-  .anno-del { width: 28px; height: 28px; font-size: 17px; line-height: 28px; top: -14px; right: -14px; }
+  .anno-del { width: 28px; height: 28px; font-size: 17px; line-height: 28px; }
   .anno-grip { width: 20px; height: 20px; right: -10px; bottom: -10px; }
 }
 
