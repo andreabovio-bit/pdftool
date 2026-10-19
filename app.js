@@ -21,6 +21,7 @@ const state = {
   annos: [],
   tool: 'select',
   scale: 1,
+  autoScale: true,
   selected: null,
   pendingImage: null,   // dataURL in attesa di essere piazzata con un click
   seq: 0,
@@ -136,33 +137,51 @@ async function openPdf(buffer, name) {
   }
 
   state.scale = fitScale();
+  state.autoScale = true;
 
   $('#doc-name').textContent = `${name} — ${state.doc.numPages} pagin${state.doc.numPages === 1 ? 'a' : 'e'}`;
   $('#btn-save').disabled = false;
-  await render();
+  render();
   toast(`Aperto: ${name}`);
 }
 
 /* ------------------------------------------------------------- rendering */
 
-async function render() {
+// Un canvas a piena risoluzione costa parecchia memoria (una A4 a 2x sfiora i
+// 16 MB): sul telefono dipingere tutte le pagine insieme fa chiudere la scheda.
+// Si dipinge quindi solo ciò che è vicino allo schermo, liberando il resto.
+const MAX_DPR = 2;
+
+/* Quanto dipingere oltre i bordi dello schermo, così scorrendo si trova la
+ * pagina già pronta. In pixel calcolati sulla finestra: le percentuali nel
+ * rootMargin si comportano diversamente tra i browser. */
+function preloadMargin() {
+  return `${Math.round((window.innerHeight || 800) * 1.5)}px 0px`;
+}
+
+let pageObserver = null;
+
+function render() {
+  pageObserver?.disconnect();
   viewer.innerHTML = '';
-  const dpr = window.devicePixelRatio || 1;
 
   for (const info of state.pages) {
-    const page = await state.doc.getPage(info.num);
-    const vp = page.getViewport({ scale: state.scale });
+    const w = info.wv * state.scale;
+    const h = info.hv * state.scale;
 
     const wrap = document.createElement('div');
     wrap.className = 'page';
-    wrap.style.width = `${vp.width}px`;
-    wrap.style.height = `${vp.height}px`;
+    wrap.dataset.page = info.num - 1;
+    wrap.style.width = `${w}px`;
+    wrap.style.height = `${h}px`;
 
+    // dimensione sullo schermo subito, bitmap solo quando serve davvero:
+    // senza azzerarli, gli attributi valgono 300x150 e allocano comunque
     const canvas = document.createElement('canvas');
-    canvas.width = Math.floor(vp.width * dpr);
-    canvas.height = Math.floor(vp.height * dpr);
-    canvas.style.width = `${vp.width}px`;
-    canvas.style.height = `${vp.height}px`;
+    canvas.width = 0;
+    canvas.height = 0;
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
 
     const layer = document.createElement('div');
     layer.className = 'page-layer';
@@ -174,16 +193,56 @@ async function render() {
 
     wrap.append(canvas, layer, badge);
     viewer.append(wrap);
-
-    const ctx = canvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    await page.render({ canvasContext: ctx, viewport: vp }).promise;
-
     attachLayerEvents(layer);
   }
 
   state.annos.forEach(drawAnno);
   updateZoomLabel();
+
+  pageObserver = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) paintPage(e.target);
+      else releasePage(e.target);
+    }
+  }, { rootMargin: preloadMargin() });
+
+  viewer.querySelectorAll('.page').forEach((p) => pageObserver.observe(p));
+}
+
+async function paintPage(wrap) {
+  if (wrap.dataset.painted === '1' || wrap.dataset.painting === '1') return;
+  wrap.dataset.painting = '1';
+  const scaleAtStart = state.scale;
+
+  try {
+    const page = await state.doc.getPage(Number(wrap.dataset.page) + 1);
+    if (!wrap.isConnected || state.scale !== scaleAtStart) return;   // zoom cambiato nel frattempo
+
+    const vp = page.getViewport({ scale: state.scale });
+    const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+    const canvas = wrap.querySelector('canvas');
+    canvas.width = Math.floor(vp.width * dpr);
+    canvas.height = Math.floor(vp.height * dpr);
+
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    wrap.dataset.painted = '1';
+  } catch (err) {
+    console.warn('rendering della pagina fallito', err);
+  } finally {
+    delete wrap.dataset.painting;
+  }
+}
+
+/** Libera la memoria di una pagina lontana dallo schermo. Le annotazioni
+ *  vivono nel DOM, non nel canvas: non si perde nulla. */
+function releasePage(wrap) {
+  if (wrap.dataset.painted !== '1') return;
+  const canvas = wrap.querySelector('canvas');
+  canvas.width = 0;
+  canvas.height = 0;
+  delete wrap.dataset.painted;
 }
 
 function layerOf(pageIndex) {
@@ -631,8 +690,22 @@ function fitScale() {
 function setScale(v) {
   if (!state.doc) return;
   state.scale = Math.max(0.4, Math.min(3, v));
+  state.autoScale = false;          // da qui in poi comanda l'utente
   render();
 }
+
+// Ruotare il telefono cambia la larghezza utile: si riadatta la pagina, a meno
+// che lo zoom sia stato scelto a mano. Serve anche a ricalcolare il margine di
+// anticipo dell'osservatore.
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  if (!state.doc) return;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (state.autoScale) state.scale = fitScale();
+    render();
+  }, 200);
+});
 
 function updateZoomLabel() {
   $('#zoom-label').textContent = `${Math.round(state.scale * 100)}%`;
