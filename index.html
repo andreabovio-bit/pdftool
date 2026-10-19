@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>PdfTool — annota e firma</title>
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="PdfTool">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="toolbar">
+    <div class="group">
+      <button class="btn primary" id="btn-open">Apri PDF</button>
+      <input type="file" id="file-input" accept="application/pdf" hidden>
+      <span id="doc-name" class="doc-name">nessun file</span>
+    </div>
+
+    <div class="group tools" id="tools">
+      <button class="btn tool active" data-tool="select" title="Sposta e seleziona">Seleziona</button>
+      <button class="btn tool" data-tool="text" title="Clicca sulla pagina per scrivere">Testo</button>
+      <button class="btn tool" data-tool="highlight" title="Trascina sulla pagina per evidenziare">Evidenzia</button>
+      <button class="btn tool" data-tool="image" title="Inserisci un'immagine">Immagine</button>
+      <button class="btn" id="btn-signature" title="Disegna una firma">Firma…</button>
+    </div>
+
+    <div class="group props">
+      <label class="prop">Colore
+        <input type="color" id="prop-color" value="#d81b60">
+      </label>
+      <label class="prop">Corpo
+        <input type="number" id="prop-size" value="14" min="6" max="96" step="1">
+      </label>
+    </div>
+
+    <div class="group">
+      <button class="btn" id="zoom-out" title="Riduci">−</button>
+      <span id="zoom-label" class="zoom-label">100%</span>
+      <button class="btn" id="zoom-in" title="Ingrandisci">+</button>
+    </div>
+
+    <div class="group right">
+      <button class="btn" id="btn-undo" title="Annulla ultima annotazione">Annulla</button>
+      <button class="btn" id="btn-clear" title="Rimuovi tutte le annotazioni">Pulisci</button>
+      <button class="btn primary" id="btn-save" disabled>Salva PDF</button>
+    </div>
+  </header>
+
+  <p class="hint" id="hint">Apri un PDF, scegli uno strumento e clicca sulla pagina. Tutto resta sul tuo computer: nessun file viene caricato in rete.</p>
+
+  <main id="viewer" class="viewer"></main>
+
+  <input type="file" id="image-input" accept="image/png,image/jpeg" hidden>
+
+  <dialog id="sign-dialog" class="sign-dialog">
+    <h2>Disegna la firma</h2>
+    <p class="sign-note">Usa il mouse o il trackpad. Lo sfondo resta trasparente.</p>
+    <canvas id="sign-canvas" width="640" height="220"></canvas>
+    <div class="sign-actions">
+      <button class="btn" id="sign-clear">Cancella</button>
+      <span class="spacer"></span>
+      <button class="btn" id="sign-cancel">Chiudi</button>
+      <button class="btn primary" id="sign-ok">Usa questa firma</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="vendor/pdf.min.js"></script>
+  <script src="vendor/pdf-lib.min.js"></script>
+  <script src="coords.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
